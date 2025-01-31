@@ -55,6 +55,11 @@ ScheduleFn = Callable[[TimeArray], TimeArray]
 SampleFn = Callable[[KeyType, QArray, AArray], Float[Array, "_ _ _"]]
 
 
+"""
+    Mixed Precision
+"""
+
+
 @dataclass(frozen=True)
 class StaticLossScale:
     """ Scales and unscales by a fixed constant. """
@@ -113,6 +118,11 @@ def precision_cast(fn: Union[Callable, eqx.Module], x: Array) -> Array:
     return fn(x.astype(jnp.float32)).astype(x.dtype)
 
 
+"""
+    Sharding
+"""
+
+
 def get_shardings() -> Tuple[
     Optional[NamedSharding], Optional[PositionalSharding]
 ]:
@@ -147,6 +157,11 @@ def shard_batch(
     if sharding:
         batch = eqx.filter_shard(batch, sharding)
     return batch
+
+
+"""
+    Miscallaneous
+"""
 
 
 def count_parameters(model: eqx.Module) -> int:
@@ -274,7 +289,7 @@ def split_data(X, Q, A, split=0.9):
 
 
 """
-    Model
+    UNet
 """
 
 
@@ -890,6 +905,11 @@ class UNet(eqx.Module):
         return self.final_conv(jnp.concatenate([x, q]) if exists(q) else x)
     
 
+"""
+    Diffusion Transformer (DiT)
+"""
+
+
 class AdaLayerNorm(eqx.Module):
     norm: eqx.nn.LayerNorm
     scale_proj: eqx.nn.Linear
@@ -977,7 +997,7 @@ class TransformerBlock(eqx.Module):
     ):
         keys = jr.split(key, 5)
         self.norm1 = AdaLayerNorm(embed_dim, key=keys[0])
-        self.attn = eqx.nn.MultiheadAttention(n_heads, embed_dim, key=keys[1])
+        self.attn = eqx.nn.MultiheadAttention(n_heads, embed_dim, key=keys[1]) # NOTE: Casting in here...
         self.norm2 = AdaLayerNorm(embed_dim, key=keys[2])
         self.mlp = eqx.nn.Sequential(
             [
@@ -989,9 +1009,9 @@ class TransformerBlock(eqx.Module):
 
     @typecheck
     def __call__(self, x: Float[Array, "s q"], y: Float[Array, "y"]) -> Float[Array, "s q"]:
-        x = jax.vmap(lambda x: self.norm1(x, y))(x)
+        x = precision_cast(jax.vmap(lambda x: self.norm1(x, y)), x)
         x = x + self.attn(x, x, x)
-        x = jax.vmap(lambda x: self.norm2(x, y))(x)
+        x = precision_cast(jax.vmap(lambda x: self.norm2(x, y)), x)
         x = x + jax.vmap(self.mlp)(x)
         return x
 
@@ -1093,6 +1113,11 @@ class DiT(eqx.Module):
         )
 
         return x
+
+
+"""
+    Rectified Flow
+"""
 
 
 class RectifiedFlow(eqx.Module):
@@ -1697,6 +1722,7 @@ def single_likelihood_fn(
     exact_log_prob: bool = False,
     n_eps: Optional[int] = 10
 )-> Scalar:
+
     solver = default(solver, dfx.Euler())
 
     v = eqx.nn.inference_mode(v, True)
@@ -1747,6 +1773,7 @@ def loss_fn(
     sigma_0: float, 
     policy: Optional[Policy] = None
 ) -> Tuple[Scalar, Tuple[Scalar]]:
+
     key_noise, key_apply = jr.split(key)
 
     if q_as_x_1 and exists(q):
