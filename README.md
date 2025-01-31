@@ -4,6 +4,7 @@ Cutting-edge and feature-rich implementation of Rectified Flows from [Flow Strai
 
 Features:
 - Deterministic and stochastic sampling of the associated ODE and SDE respectively,
+- Mixed precision optimisation,
 - array-typed to-the-teeth for dependable execution with `jaxtyping` and `beartype`.
 
 To implement:
