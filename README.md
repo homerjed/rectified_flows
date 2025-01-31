@@ -5,7 +5,7 @@ Cutting-edge and feature-rich implementation of Rectified Flows from [Flow Strai
 Features:
 - Deterministic and stochastic sampling of the associated ODE and SDE respectively,
 - Mixed precision optimisation,
-- array-typed to-the-teeth for dependable execution with `jaxtyping` and `beartype`.
+- Array-typed to-the-teeth for dependable execution with `jaxtyping` and `beartype`.
 
 To implement:
 - [ ] Guidance by score of conditioning
@@ -15,7 +15,7 @@ To implement:
 - [x] Stochastic sampling
 - [x] ODE Sampling
 - [x] Likelihoods
-- [ ] DiT
+- [x] DiT
 - [ ] Hyperparameter/model saving
 
 ```bibtex
@@ -31,15 +31,15 @@ To implement:
 ```
 
 ```bibtex
-    @misc{lipman2023flowmatchinggenerativemodeling,
-        title={Flow Matching for Generative Modeling}, 
-        author={Yaron Lipman and Ricky T. Q. Chen and Heli Ben-Hamu and Maximilian Nickel and Matt Le},
-        year={2023},
-        eprint={2210.02747},
-        archivePrefix={arXiv},
-        primaryClass={cs.LG},
-        url={https://arxiv.org/abs/2210.02747}, 
-    }
+@misc{lipman2023flowmatchinggenerativemodeling,
+    title={Flow Matching for Generative Modeling}, 
+    author={Yaron Lipman and Ricky T. Q. Chen and Heli Ben-Hamu and Maximilian Nickel and Matt Le},
+    year={2023},
+    eprint={2210.02747},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG},
+    url={https://arxiv.org/abs/2210.02747}, 
+}
 ```
 
 ```bibtex
@@ -51,5 +51,17 @@ To implement:
       archivePrefix={arXiv},
       primaryClass={cs.CV},
       url={https://arxiv.org/abs/2407.02398}, 
+}
+```
+
+```bibtex
+@misc{peebles2023scalablediffusionmodelstransformers,
+      title={Scalable Diffusion Models with Transformers}, 
+      author={William Peebles and Saining Xie},
+      year={2023},
+      eprint={2212.09748},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2212.09748}, 
 }
 ```

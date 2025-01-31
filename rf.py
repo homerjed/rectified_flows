@@ -52,6 +52,8 @@ AArray = Optional[Float[Array, "_"]]
 
 ScheduleFn = Callable[[TimeArray], TimeArray]
 
+SampleFn = Callable[[KeyType, QArray, AArray], Float[Array, "_ _ _"]]
+
 
 @dataclass(frozen=True)
 class StaticLossScale:
@@ -652,7 +654,7 @@ class UNet(eqx.Module):
     final_res_block: ResnetBlock
     final_conv: eqx.nn.Conv2d
 
-    scaler: eqx.Module
+    scaler: Optional[eqx.Module]
 
     @typecheck
     def __init__(
@@ -888,10 +890,215 @@ class UNet(eqx.Module):
         return self.final_conv(jnp.concatenate([x, q]) if exists(q) else x)
     
 
-class RectifiedFlow(eqx.Module):
-    net: eqx.Module | UNet
+class AdaLayerNorm(eqx.Module):
+    norm: eqx.nn.LayerNorm
+    scale_proj: eqx.nn.Linear
+    shift_proj: eqx.nn.Linear
 
-    def __init__(self, net: eqx.Module | UNet):
+    @typecheck
+    def __init__(self, embed_dim: int, *, key: KeyType):
+        keys = jr.split(key)
+        self.norm = eqx.nn.LayerNorm(embed_dim)
+        self.scale_proj = eqx.nn.Linear(embed_dim, embed_dim, key=keys[0])
+        self.shift_proj = eqx.nn.Linear(embed_dim, embed_dim, key=keys[1])
+
+    @typecheck
+    def __call__(self, x: Float[Array, "q"], y: Float[Array, "y"]):
+        gamma = self.scale_proj(y)#[jnp.newaxis, :]  # (1, D)
+        beta = self.shift_proj(y)#[jnp.newaxis, :]   # (1, D)
+        return self.norm(x) * (1. + gamma) + beta
+
+
+class PatchEmbedding(eqx.Module):
+    patch_size: int
+    proj: eqx.nn.Conv2d
+    cls_token: Float[Array, "1 1 e"]
+    pos_embed: Float[Array, "1 s e"]
+
+    @typecheck
+    def __init__(
+        self, 
+        img_size: int, 
+        patch_size: int, 
+        in_channels: int, 
+        embed_dim: int, 
+        key: KeyType
+    ):
+        keys = jr.split(key, 3)
+        self.patch_size = patch_size
+        self.proj = eqx.nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size, key=keys[0])
+        self.cls_token = jr.normal(keys[1], (1, embed_dim)) # extra 1 before
+        self.pos_embed = jr.normal(keys[2], (int(img_size / patch_size) ** 2 + 1, embed_dim))
+
+    @typecheck
+    def __call__(self, x: Float[Array, "_ _ _"]) -> Float[Array, "s q"]:
+        x = self.proj(x)
+        x = rearrange(x, "c h w -> (h w) c") 
+        x = jnp.concatenate([self.cls_token, x], axis=0) 
+        x = x + self.pos_embed  
+        return x
+
+
+class TimestepEmbedding(eqx.Module):
+    embed_dim: int
+    mlp: eqx.nn.Sequential
+
+    @typecheck
+    def __init__(self, embed_dim: int, *, key: KeyType):
+        self.embed_dim = embed_dim
+
+        keys = jr.split(key)
+        self.mlp = eqx.nn.Sequential(
+            [
+                eqx.nn.Linear(1, embed_dim, key=keys[0]),
+                eqx.nn.Lambda(jax.nn.gelu),
+                eqx.nn.Linear(embed_dim, embed_dim, key=keys[1]),
+            ]
+        )
+
+    @typecheck
+    def __call__(self, t: TimeArray) -> Float[Array, "{self.embed_dim}"]:
+        return self.mlp(jnp.atleast_1d(t))
+
+
+class TransformerBlock(eqx.Module):
+    norm1: AdaLayerNorm
+    attn: eqx.nn.MultiheadAttention
+    norm2: AdaLayerNorm
+    mlp: eqx.nn.Sequential
+
+    @typecheck
+    def __init__(
+        self, 
+        embed_dim: int, 
+        n_heads: int, 
+        *, 
+        key: KeyType
+    ):
+        keys = jr.split(key, 5)
+        self.norm1 = AdaLayerNorm(embed_dim, key=keys[0])
+        self.attn = eqx.nn.MultiheadAttention(n_heads, embed_dim, key=keys[1])
+        self.norm2 = AdaLayerNorm(embed_dim, key=keys[2])
+        self.mlp = eqx.nn.Sequential(
+            [
+                eqx.nn.Linear(embed_dim, embed_dim * 4, key=keys[3]),
+                eqx.nn.Lambda(jax.nn.gelu),
+                eqx.nn.Linear(embed_dim * 4, embed_dim, key=keys[4])
+            ]
+        )
+
+    @typecheck
+    def __call__(self, x: Float[Array, "s q"], y: Float[Array, "y"]) -> Float[Array, "s q"]:
+        x = jax.vmap(lambda x: self.norm1(x, y))(x)
+        x = x + self.attn(x, x, x)
+        x = jax.vmap(lambda x: self.norm2(x, y))(x)
+        x = x + jax.vmap(self.mlp)(x)
+        return x
+
+
+class DiT(eqx.Module):
+    img_size: int
+    q_dim: int
+    patch_embed: PatchEmbedding
+    time_embed: TimestepEmbedding
+    a_embed: Optional[eqx.nn.Linear]
+    blocks: List[TransformerBlock]
+    out_conv: eqx.nn.ConvTranspose2d
+    scaler: Optional[Scaler] = None
+
+    @typecheck
+    def __init__(
+        self, 
+        img_size: int, 
+        patch_size: int, 
+        channels: int, 
+        embed_dim: int, 
+        depth: int, 
+        n_heads: int, 
+        q_dim: Optional[int] = None, 
+        a_dim: Optional[int] = None, 
+        scaler: Optional[Scaler] = None,
+        *, 
+        key: KeyType
+    ):
+        self.img_size = img_size
+        self.q_dim = q_dim
+
+        keys = jr.split(key, 5)
+        channels = channels + q_dim if (q_dim is not None) else channels
+
+        self.patch_embed = PatchEmbedding(
+            img_size, patch_size, channels, embed_dim, key=keys[0]
+        )
+        self.time_embed = TimestepEmbedding(embed_dim, key=keys[1])
+        
+        self.a_embed = eqx.nn.Linear(a_dim, embed_dim, key=keys[2]) if (a_dim is not None) else None
+
+        block_keys = jr.split(keys[3], depth)
+        self.blocks = eqx.filter_vmap(
+            lambda key: TransformerBlock(embed_dim, n_heads, key=key) 
+        )(block_keys)
+
+        self.out_conv = eqx.nn.ConvTranspose2d(
+            embed_dim, channels, kernel_size=patch_size, stride=patch_size, key=keys[4]
+        )
+
+        self.scaler = scaler
+
+    @typecheck
+    def __call__(
+        self, 
+        t: TimeArray, 
+        x: XArray, 
+        q: QArray, 
+        a: AArray,
+        key: Optional[PRNGKeyArray] = None
+    ) -> Float[Array, "_ _ _"]:
+
+        if exists(self.scaler):
+            x, q, a = self.scaler.forward(x, q, a)
+
+        x = self.patch_embed(
+            jnp.concatenate([x, q]) 
+            if (q is not None) and (self.q_dim is not None)
+            else x
+        )
+
+        t_embedding = self.time_embed(t)
+        if (a is not None) and (self.a_dim is not None):
+            a_embedding = self.a_embed(a)
+            embedding = a_embedding + t_embedding
+        else:
+            embedding = t_embedding
+
+        all_params, struct = eqx.partition(self.blocks, eqx.is_array)
+
+        def block_fn(x, params):
+            block = eqx.combine(params, struct)
+            x = block(x, embedding)
+            return x, None
+
+        x, _ = jax.lax.scan(block_fn, x, all_params)
+
+        x = x[1:] # No class token 
+        x = rearrange(
+            x, 
+            "(h w) c -> c h w", 
+            h=int(self.img_size / self.patch_embed.patch_size)
+        )  
+        x = self.out_conv(
+            jnp.concatenate([x, q]) 
+            if (q is not None) and (self.q_dim is not None)
+            else x
+        )
+
+        return x
+
+
+class RectifiedFlow(eqx.Module):
+    net: eqx.Module | UNet | DiT
+
+    def __init__(self, net: eqx.Module | UNet | DiT):
         self.net = net
 
     def __call__(self, *args, **kwargs):
@@ -1106,7 +1313,7 @@ def get_sample_fn(
     v: eqx.Module, 
     x_shape: Sequence[int], 
     soln_kwargs: Optional[dict] = {}
-) -> Callable:
+) -> SampleFn:
     def _sample_fn(
         key: PRNGKeyArray, 
         q: QArray, 
@@ -1249,7 +1456,7 @@ def get_sample_fn_ode(
     flow: eqx.Module, 
     x_shape: Sequence[int], 
     soln_kwargs: Optional[dict] = {}
-) -> Callable[[KeyType, QArray, AArray], XArray]:
+) -> SampleFn:
     def _sample_fn(
         key: PRNGKeyArray, 
         q: QArray, 
@@ -1330,7 +1537,7 @@ def single_non_singular_sample_fn(
     n: int = 1, 
     m: int = 0,
     q_as_x_1: bool = False
-) -> XArray:
+) -> Float[Array, "_ _ _"]:
 
     key_z, key_sample = jr.split(key)
 
@@ -1380,7 +1587,7 @@ def get_sample_fn_non_singular(
     x_shape: Sequence[int], 
     stochastic_kwargs: Optional[dict] = {},
     soln_kwargs: Optional[dict] = {}
-) -> Callable[[KeyType, QArray, AArray], XArray]:
+) -> SampleFn:
     if not soln_kwargs:
         _soln_kwargs = soln_kwargs.copy()
         _soln_kwargs.pop("dt")
@@ -2467,16 +2674,34 @@ def get_config():
     data.split                    = 0.9
     data.use_grain                = False
 
-    config.model = model = ConfigDict()
-    model.dim                     = 128
-    model.channels                = data.n_channels
-    model.q_channels              = None
-    model.a_dim                   = None
-    model.dim_mults               = (1, 2, 4, 8)
-    model.learned_sinusoidal_cond = True
-    model.random_fourier_features = True
-    model.attn_dim_head           = 64
-    model.dropout                 = 0.1
+    config.model_type = "DiT"
+
+    if config.model_type == "UNet":
+        config.model_constructor = UNet
+
+        config.model = model = ConfigDict()
+        model.dim                     = 128
+        model.channels                = data.n_channels
+        model.q_channels              = None
+        model.a_dim                   = None
+        model.dim_mults               = (1, 2, 4, 8)
+        model.learned_sinusoidal_cond = True
+        model.random_fourier_features = True
+        model.attn_dim_head           = 64
+        model.dropout                 = 0.1
+
+    if config.model_type == "DiT":
+        config.model_constructor = DiT
+
+        config.model = model = ConfigDict()
+        model.img_size                = config.data.n_pix
+        model.channels                = config.data.n_channels
+        model.patch_size              = 2
+        model.embed_dim               = 128
+        model.q_dim                   = None 
+        model.a_dim                   = None
+        model.depth                   = 8
+        model.n_heads                 = 4
 
     config.train = train = ConfigDict()
     train.reload                  = False # Auto-load from config.run_dir
@@ -2514,7 +2739,6 @@ if __name__ == "__main__":
     config = get_config()
 
     key = jr.key(config.seed)
-
     key, key_data, key_train, key_model = jr.split(key, 4)
 
     dataset = ffhq(
@@ -2526,7 +2750,7 @@ if __name__ == "__main__":
         data_dir=config.data_dir
     )
 
-    v = UNet(**config.model, key=key_model) 
+    v = config.model_constructor(**config.model, key=key_model) 
 
     flow = RectifiedFlow(v)
 
