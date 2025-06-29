@@ -2,7 +2,7 @@
 
 Cutting-edge and feature-rich implementation of Rectified Flows from [Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flows](https://arxiv.org/abs/2209.03003) in `jax` and `equinox`.
 
-Features:
+#### Features
 - Deterministic and stochastic sampling of the associated ODE and SDE respectively,
 - Mixed precision optimisation,
 - Array-typed to-the-teeth for dependable execution with `jaxtyping` and `beartype`.
@@ -17,6 +17,14 @@ To implement:
 - [x] Likelihoods
 - [x] DiT
 - [ ] Hyperparameter/model saving
+
+#### Usage
+
+```
+pip install -e . 
+```
+
+#### Citations
 
 ```bibtex
 @misc{liu2022flowstraightfastlearning,
