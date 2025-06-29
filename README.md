@@ -51,6 +51,18 @@ pip install -e .
 ```
 
 ```bibtex
+@misc{singh2024stochasticsamplingdeterministicflow,
+      title={Stochastic Sampling from Deterministic Flow Models}, 
+      author={Saurabh Singh and Ian Fischer},
+      year={2024},
+      eprint={2410.02217},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2410.02217}, 
+}
+```
+
+```bibtex
 @misc{yang2024consistencyflowmatchingdefining,
       title={Consistency Flow Matching: Defining Straight Flows with Velocity Consistency}, 
       author={Ling Yang and Zixiang Zhang and Zhilong Zhang and Xingchao Liu and Minkai Xu and Wentao Zhang and Chenlin Meng and Stefano Ermon and Bin Cui},
