@@ -24,6 +24,13 @@ To implement:
 pip install -e . 
 ```
 
+<p align="center">
+  <picture>
+    <img src="flow_matching_baryons.gif" alt="Your image description">
+  </picture>
+</p>
+
+
 #### Citations
 
 ```bibtex
