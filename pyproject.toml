@@ -1,0 +1,53 @@
+[project]
+name = "rectified_flows"
+version = "0.0.0"
+description = "Fast, parallel and lightweight simulation-based inference in JAX."
+readme = "README.md"
+requires-python =">=3.10"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Jed Homer", email = "jedhmr@gmail.com"},
+]
+keywords = [
+    "machine-learning",
+    "deep-learning", 
+    "generative-models", 
+    "jax", 
+    "diffusion",
+    "flow-matching"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+urls = {repository = "https://github.com/homerjed/sbiax"}
+
+dependencies = [
+    "jax",
+    "jaxlib",
+    "equinox",
+    "diffrax",
+    "jaxtyping",
+    "beartype",
+    "optax",
+    "grain",
+    "numpy",
+    "einops",
+    "einx",
+    "ml_collections",
+    "matplotlib",
+    "cloudpickle",
+    "Pillow",
+    "tqdm",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["*"]
