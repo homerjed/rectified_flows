@@ -1,4 +1,4 @@
-h1 align='center'>Rectified Flow Matching</h1>
+<h1 align='center'>Rectified Flow Matching</h1>
 
 Cutting-edge and feature-rich implementation of Rectified Flows from [Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flows](https://arxiv.org/abs/2209.03003) in `jax` and `equinox`.
 
