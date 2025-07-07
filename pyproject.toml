@@ -1,6 +1,6 @@
 [project]
 name = "rectified_flows"
-version = "0.0.10"
+version = "0.0.11"
 description = "Implementation of Rectified Flows in JAX and Equinox. "
 readme = "README.md"
 requires-python = ">=3.10"
