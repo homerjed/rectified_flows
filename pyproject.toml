@@ -1,9 +1,12 @@
 [project]
-name = "rectified_flows"
-version = "0.0.11"
-description = "Implementation of Rectified Flows in JAX and Equinox. "
+name = "rectified-flows"
+version = "0.0.16"
+description = "Implementation of Rectified Flows in JAX and Equinox."
 readme = "README.md"
-requires-python = ">=3.10"
+authors = [
+    { name = "homerjed", email = "jedhmr@gmail.com" }
+]
+requires-python = ">=3.11"
 dependencies = [
     "beartype>=0.21.0",
     "cloudpickle>=3.1.1",
@@ -13,11 +16,24 @@ dependencies = [
     "equinox>=0.12.2",
     "grain>=0.2.11",
     "jax>=0.6.2",
-    "jaxtyping>=0.3.2",
-    "matplotlib>=3.10.3",
     "ml-collections>=1.1.0",
-    "numpy>=2.2.6",
+    "numpy>=2.3.1",
     "optax>=0.2.5",
-    "pillow>=11.3.0",
     "tqdm>=4.67.1",
+]
+
+[project.optional-dependencies]
+examples = [
+    "datasets>=3.6.0",
+    "matplotlib>=3.10.3",
+    "pillow>=11.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
 ]

@@ -13,6 +13,7 @@ import optax
 import grain.python as grain
 import numpy as np
 from ml_collections import ConfigDict
+from beartype import beartype as typechecker
 
 from rectified_flows import (
     RectifiedFlow, UNet, DiT, 
@@ -20,11 +21,7 @@ from rectified_flows import (
     Policy, train, exists, identity, get_shardings
 )
 
-try:
-    from beartype import beartype as typechecker
-    typecheck = jaxtyped(typechecker=typechecker) 
-except ImportError:
-    typecheck = lambda x: x
+typecheck = jaxtyped(typechecker=typechecker) 
 
 
 class FFHQDataset(grain.RandomAccessDataSource):

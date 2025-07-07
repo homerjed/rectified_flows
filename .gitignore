@@ -5,4 +5,6 @@
 *.npy
 *.npz
 *.sh
+runs/
 .DS_Store
+__pycache__

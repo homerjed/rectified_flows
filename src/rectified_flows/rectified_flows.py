@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr 
 import equinox as eqx
-from jax.sharding import NamedSharding, PositionalSharding, Mesh, PartitionSpec as P
+from jax.sharding import NamedSharding
 from jax.experimental import mesh_utils
 import equinox as eqx
 import diffrax as dfx
@@ -119,19 +119,20 @@ def precision_cast(fn: Union[Callable, eqx.Module], x: Array) -> Array:
 """
 
 
-def get_shardings() -> Tuple[
-    Optional[NamedSharding], Optional[PositionalSharding]
-]:
+def get_shardings() -> Tuple[Optional[NamedSharding], Optional[NamedSharding]]:
     devices = jax.local_devices()
-    n_devices = len(devices)
+    n_devices = jax.local_device_count()
+
     print(f"Running on {n_devices} local devices: \n\t{devices}")
 
     if n_devices > 1:
-        mesh = Mesh(devices, ('x',))
-        sharding = NamedSharding(mesh, P('x'))
-
-        devices = mesh_utils.create_device_mesh((n_devices, 1))
-        replicated = PositionalSharding(devices).replicate()
+        mesh = jax.sharding.Mesh(devices, "x")
+        sharding = jax.sharding.NamedSharding(
+            mesh, jax.sharding.PartitionSpec("x")
+        )
+        replicated = jax.sharding.NamedSharding(
+            mesh, jax.sharding.PartitionSpec()
+        )
     else:
         sharding = replicated = None
 
@@ -1250,13 +1251,16 @@ class RectifiedFlow(eqx.Module):
         x: XArray,
         q: QArray, 
         a: AArray,
+        key: PRNGKeyArray,
         t0: float, 
         t1: float, 
         dt: float, 
+        *,
         solver: Optional[dfx.AbstractSolver] = None,
         exact_log_prob: bool = False,
         n_eps: Optional[int] = 10
     ) -> Scalar:
+
         return single_likelihood_fn(
             self.net, 
             x, 
@@ -1326,6 +1330,7 @@ def single_sample_fn(
         scaler = v.scaler
         if exists(scaler):
             x_, _, _ = scaler.inverse(x_, q, a) # Inverse scale 
+
     return x_ 
 
 
@@ -1335,6 +1340,7 @@ def get_sample_fn(
     x_shape: Sequence[int], 
     soln_kwargs: Optional[dict] = {}
 ) -> SampleFn:
+
     def _sample_fn(
         key: PRNGKeyArray, 
         q: QArray, 
@@ -1343,6 +1349,7 @@ def get_sample_fn(
         return v.sample(
             q, a, key, x_shape, **soln_kwargs
         )
+
     return _sample_fn
 
 
@@ -1409,6 +1416,7 @@ def single_sample_fn_ode(
         scaler = v.scaler
         if exists(scaler):
             x_, _, _ = scaler.inverse(x_, q, a) 
+
     return x_
 
 
@@ -1469,6 +1477,7 @@ def single_sample_fn_sde(
     scaler = v.scaler
     if exists(scaler):
         x_, _, _ = scaler.inverse(x_, q, a)
+
     return x_
 
 
@@ -1478,6 +1487,7 @@ def get_sample_fn_ode(
     x_shape: Sequence[int], 
     soln_kwargs: Optional[dict] = {}
 ) -> SampleFn:
+
     def _sample_fn(
         key: PRNGKeyArray, 
         q: QArray, 
@@ -1486,6 +1496,7 @@ def get_sample_fn_ode(
         return single_sample_fn_ode(
             flow, q, a, key, x_shape, **soln_kwargs
         )
+
     return _sample_fn
 
 
@@ -1539,6 +1550,7 @@ def single_sample_along_time(
     scaler = v.scaler
     if exists(scaler):
         x_, _, _ = scaler.inverse(x_, q, a) # Inverse scale 
+
     return x_
 
 
@@ -1621,6 +1633,7 @@ def get_sample_fn_non_singular(
         return single_non_singular_sample_fn(
             flow, q, a, key, x_shape, **stochastic_kwargs, **_soln_kwargs
         )
+
     return _sample_fn
 
 
@@ -1650,10 +1663,6 @@ def log_prob_approx(
         ]
     ]
 ) -> Tuple[Float[Array, "_ _ _"], Scalar]:
-    """ 
-        Approx. trace using Hutchinson's trace estimator. 
-        - optional multiple-eps sample to average estimated log_prob over
-    """
     y, _ = y 
     (q, a, eps, v) = args
     
@@ -1689,9 +1698,6 @@ def log_prob_exact(
         ]
     ]
 ) -> Tuple[Float[Array, "_ _ _"], Scalar]:
-    """ 
-        Compute trace directly. 
-    """
     y, _ = y
     (q, a, _, v) = args
 
@@ -1784,7 +1790,7 @@ def loss_fn(
     x_t = model.p_t(x, t, x_1) 
 
     v = model.v(t, x_t, q, a, key=key_apply) 
-    l = jnp.mean(jnp.square(jnp.subtract(v, x_1 - x))) # NOTE: wasn't sum before...
+    l = jnp.mean(jnp.square(jnp.subtract(v, x_1 - x))) 
 
     if exists(policy):
         l = policy.cast_to_output(l)
@@ -1895,9 +1901,9 @@ def save_model_and_opt_state(
     save_model(
         model, filename=run_dir / ("out/" + name + ".eqx")
     )
-    # save_opt_state(
-    #     opt, opt_state, i, filename=run_dir / ("out/" + name + "_state.obj")
-    # )
+    save_opt_state(
+        opt, opt_state, i, filename=run_dir / ("out/" + name + "_state.obj")
+    )
 
 
 @typecheck
@@ -2022,7 +2028,7 @@ def make_step(
     n_minibatches: Optional[int] = 4
 ) -> Tuple[Scalar, List[Scalar], RectifiedFlow, PyTree]:
 
-    if exists(sharding):
+    if exists(replicated_sharding):
         model, opt_state = eqx.filter_shard(
             (model, opt_state), replicated_sharding
         )
@@ -2100,7 +2106,7 @@ def train(
     policy: Optional[Policy] = None,
     # Sharding
     sharding: Optional[NamedSharding] = None,
-    replicated_sharding: Optional[PositionalSharding] = None,
+    replicated_sharding: Optional[NamedSharding] = None,
     # Sampling
     n_sample: int = 64,
     # Other
@@ -2113,17 +2119,18 @@ def train(
     if isinstance(run_dir, str):
         run_dir = Path(run_dir)
 
+    if not run_dir.exists():
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+    for _sub_dir in ["imgs", "out"]:
+        _dir = run_dir / _sub_dir
+        if not _dir.exists():
+            _dir.mkdir(exist_ok=True)
+
     if isinstance(flow, dict):
         flow = RectifiedFlow(**flow)
         
     print("Model has {:.3E} parameters.".format(count_parameters(flow)))
-
-    if not run_dir.exists():
-        run_dir.mkdir()
-    for _sub_dir in ["imgs/", "out/"]:
-        _dir = run_dir / _sub_dir
-        if not _dir.exists():
-            _dir.mkdir(exist_ok=True)
 
     key, key_sample, key_valid = jr.split(key, 3)
 
@@ -2159,6 +2166,7 @@ def train(
     # Use EMA with diffusion, but required for consistency
     if use_ema:
         ema_flow = deepcopy(flow)
+
         if exists(replicated_sharding):
             ema_flow = eqx.filter_shard(ema_flow, replicated_sharding)
 

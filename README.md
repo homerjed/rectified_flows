@@ -24,6 +24,10 @@ To implement:
 pip install rectified_flows
 ```
 
+```
+uv run --all-extras python examples/cifar10.py
+```
+
 <p align="center">
   <picture>
     <img src="assets/flow_matching_baryons.gif" alt="Your image description">

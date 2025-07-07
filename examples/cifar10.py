@@ -10,25 +10,22 @@ from jaxtyping import PRNGKeyArray, jaxtyped
 import optax
 from ml_collections import ConfigDict
 from datasets import load_dataset
+from beartype import beartype as typechecker
 
 from rectified_flows import (
-    RectifiedFlow, UNet, DiT, 
+    RectifiedFlow, DiT, 
     Dataset, InMemoryDataLoader, 
-    Policy, train, exists, get_shardings
+    Policy, train, 
+    exists, get_shardings
 )
 
-try:
-    from beartype import beartype as typechecker
-    typecheck = jaxtyped(typechecker=typechecker) 
-except ImportError:
-    typecheck = lambda x: x
+typecheck = jaxtyped(typechecker=typechecker) 
 
 
 @typecheck
 def cifar10(
     key: PRNGKeyArray,
     img_size: int, 
-    n_channels: int,
     split: float = 0.9,
     use_y: bool = False,
     use_integer_labels: bool = True,
@@ -53,12 +50,13 @@ def cifar10(
 
     data = jax.image.resize(
         data, 
-        shape=(data.shape[0], n_channels, img_size, img_size),
+        shape=(data.shape[0], 3, img_size, img_size),
         method="bilinear"
     )
 
     a, b = jnp.min(data), jnp.max(data)
-    data = 2. * (data - a) / (b - a) - 1.
+    print(a, b)
+    # data = 2. * (data - a) / (b - a) - 1.
 
     print(
         "DATA:\n> {:.3E} {:.3E} {}\n> {} {}".format(
@@ -75,7 +73,6 @@ def cifar10(
     else:
         y_train = y_valid = None
 
-    # Scaler(...) doesn't implement forward scaling in this Loader?
     train_dataloader = InMemoryDataLoader(x_train, A=y_train, key=key_train)
     valid_dataloader = InMemoryDataLoader(x_valid, A=y_valid, key=key_valid)
 
@@ -91,7 +88,7 @@ def get_config():
 
     config = ConfigDict()
     config.seed                   = 0
-    config.run_dir                = "/project/ls-gruen/users/jed.homer/zurich/runs/cifar10_{}/"
+    config.run_dir                = Path.cwd() / "runs" / "cifar10"
 
     config.data = data = ConfigDict()
     data.n_pix                    = 32
@@ -101,33 +98,17 @@ def get_config():
     data.use_grain                = False
 
     config.model_type = "DiT"
+    config.model_constructor = DiT
 
-    if config.model_type == "UNet":
-        config.model_constructor = UNet
-
-        config.model = model = ConfigDict()
-        model.dim                     = 128
-        model.channels                = data.n_channels
-        model.q_channels              = None
-        model.a_dim                   = None
-        model.dim_mults               = (1, 2, 4, 8)
-        model.learned_sinusoidal_cond = True
-        model.random_fourier_features = True
-        model.attn_dim_head           = 64
-        model.dropout                 = 0.1
-
-    if config.model_type == "DiT":
-        config.model_constructor = DiT
-
-        config.model = model = ConfigDict()
-        model.img_size                = config.data.n_pix
-        model.channels                = config.data.n_channels
-        model.patch_size              = 2
-        model.embed_dim               = 128
-        model.q_dim                   = None 
-        model.a_dim                   = None
-        model.depth                   = 8
-        model.n_heads                 = 4
+    config.model = model = ConfigDict()
+    model.img_size                = config.data.n_pix
+    model.channels                = config.data.n_channels
+    model.patch_size              = 2
+    model.embed_dim               = 128
+    model.q_dim                   = None 
+    model.a_dim                   = None
+    model.depth                   = 8
+    model.n_heads                 = 4
 
     config.train = train = ConfigDict()
     train.reload                  = False # Auto-load from config.run_dir
@@ -155,8 +136,6 @@ def get_config():
     sampling.t1                   = 1.
     sampling.dt                   = 0.01
 
-    config.run_dir = config.run_dir.format(data.n_pix)
-
     return config
 
 
@@ -169,11 +148,8 @@ if __name__ == "__main__":
 
     dataset = cifar10(
         key_data, 
-        n_data=config.data.n_data,
-        n_pix=config.data.n_pix, 
-        split=config.data.split,
-        use_grain=config.data.use_grain, # Bug...
-        data_dir=config.data_dir
+        img_size=config.data.n_pix, 
+        split=config.data.split
     )
 
     v = config.model_constructor(**config.model, key=key_model) 
