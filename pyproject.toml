@@ -1,7 +1,7 @@
 [project]
 name = "rectified_flows"
-version = "0.0.7"
-description = "Add your description here"
+version = "0.0.8"
+description = "Implementation of Rectified Flows in JAX and Equinox. "
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
