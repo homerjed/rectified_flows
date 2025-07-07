@@ -1,5 +1,5 @@
 [project]
-name = "rectified-flows"
+name = "rectified_flows"
 version = "0.0.2"
 description = "Add your description here"
 readme = "README.md"
