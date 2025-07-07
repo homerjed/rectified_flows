@@ -2685,6 +2685,7 @@ def ffhq(
 
 
 def get_config():
+
     config = ConfigDict()
     config.seed                   = 0
     config.run_dir                = "/project/ls-gruen/users/jed.homer/zurich/runs/ffhq_{}/"
@@ -2743,7 +2744,7 @@ def get_config():
     config.train.policy = policy = ConfigDict()
     policy.param_dtype            = jnp.float32
     policy.compute_dtype          = jnp.bfloat16
-    policy.output_dtype           = jnp.float32 #bfloat16
+    policy.output_dtype           = jnp.float32 
 
     config.train.sampling = sampling = ConfigDict() 
     sampling.n_sample             = 4 
