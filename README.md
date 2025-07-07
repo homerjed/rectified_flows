@@ -21,7 +21,7 @@ To implement:
 #### Usage
 
 ```
-pip install rectified-flows
+pip install rectified_flows
 ```
 
 <p align="center">

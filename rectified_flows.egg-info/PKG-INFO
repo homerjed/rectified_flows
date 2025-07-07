@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: rectified_flows
-Version: 0.0.3
+Version: 0.0.5
 Summary: Add your description here
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
@@ -45,7 +45,7 @@ To implement:
 #### Usage
 
 ```
-pip install rectified-flows
+pip install rectified_flows
 ```
 
 <p align="center">

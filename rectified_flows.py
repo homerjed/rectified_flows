@@ -16,7 +16,7 @@ from jax.sharding import NamedSharding, PositionalSharding, Mesh, PartitionSpec 
 from jax.experimental import mesh_utils
 import equinox as eqx
 import diffrax as dfx
-from jaxtyping import Key, PRNGKeyArray, PyTree, Array, Float, DTypeLike, jaxtyped
+from jaxtyping import Key, PRNGKeyArray, PyTree, Array, Float, DTypeLike, Scalar, jaxtyped
 import optax
 import grain.python as grain
 
@@ -36,10 +36,6 @@ except ImportError:
     typecheck = lambda x: x
 
 
-Scalar = Float[Array, ""]
-
-KeyType = Key[jnp.ndarray, "..."]
-
 # Array types for flow
 
 TimeArray = Float[Array, ""]
@@ -52,7 +48,7 @@ AArray = Optional[Float[Array, "_"]]
 
 ScheduleFn = Callable[[TimeArray], TimeArray]
 
-SampleFn = Callable[[KeyType, QArray, AArray], Float[Array, "_ _ _"]]
+SampleFn = Callable[[PRNGKeyArray, QArray, AArray], Float[Array, "_ _ _"]]
 
 
 """
@@ -694,7 +690,7 @@ class UNet(eqx.Module):
         flash_attn: bool = False,
         scaler: Optional[Scaler] = None,
         *,
-        key: KeyType
+        key: PRNGKeyArray
     ):
         key_modules, key_down, key_mid, key_up, key_final = jr.split(key, 5)
         keys = jr.split(key_modules, 3)
@@ -916,7 +912,7 @@ class AdaLayerNorm(eqx.Module):
     shift_proj: eqx.nn.Linear
 
     @typecheck
-    def __init__(self, embed_dim: int, *, key: KeyType):
+    def __init__(self, embed_dim: int, *, key: PRNGKeyArray):
         keys = jr.split(key)
         self.norm = eqx.nn.LayerNorm(embed_dim)
         self.scale_proj = eqx.nn.Linear(embed_dim, embed_dim, key=keys[0])
@@ -942,7 +938,7 @@ class PatchEmbedding(eqx.Module):
         patch_size: int, 
         in_channels: int, 
         embed_dim: int, 
-        key: KeyType
+        key: PRNGKeyArray
     ):
         keys = jr.split(key, 3)
         self.patch_size = patch_size
@@ -964,7 +960,7 @@ class TimestepEmbedding(eqx.Module):
     mlp: eqx.nn.Sequential
 
     @typecheck
-    def __init__(self, embed_dim: int, *, key: KeyType):
+    def __init__(self, embed_dim: int, *, key: PRNGKeyArray):
         self.embed_dim = embed_dim
 
         keys = jr.split(key)
@@ -993,7 +989,7 @@ class TransformerBlock(eqx.Module):
         embed_dim: int, 
         n_heads: int, 
         *, 
-        key: KeyType
+        key: PRNGKeyArray
     ):
         keys = jr.split(key, 5)
         self.norm1 = AdaLayerNorm(embed_dim, key=keys[0])
@@ -1039,7 +1035,7 @@ class DiT(eqx.Module):
         a_dim: Optional[int] = None, 
         scaler: Optional[Scaler] = None,
         *, 
-        key: KeyType
+        key: PRNGKeyArray
     ):
         self.img_size = img_size
         self.q_dim = q_dim
@@ -1552,7 +1548,7 @@ def single_non_singular_sample_fn(
     v: eqx.Module, 
     q: QArray, 
     a: AArray,
-    key: KeyType, 
+    key: PRNGKeyArray, 
     x_shape: Sequence[int],
     *,
     t0: float, 
@@ -2077,7 +2073,7 @@ def get_noise_schedule_fn(
 
 @typecheck
 def train(
-    key: KeyType,
+    key: PRNGKeyArray,
     # Model
     flow: RectifiedFlow,
     # Data
