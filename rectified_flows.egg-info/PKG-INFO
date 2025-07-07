@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: rectified_flows
-Version: 0.0.8
+Version: 0.0.9
 Summary: Implementation of Rectified Flows in JAX and Equinox. 
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
