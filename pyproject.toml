@@ -1,6 +1,6 @@
 [project]
 name = "rectified_flows"
-version = "0.0.5"
+version = "0.0.7"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
