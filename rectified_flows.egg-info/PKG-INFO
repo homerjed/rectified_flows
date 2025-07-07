@@ -1,0 +1,23 @@
+Metadata-Version: 2.4
+Name: rectified-flows
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: beartype>=0.21.0
+Requires-Dist: cloudpickle>=3.1.1
+Requires-Dist: diffrax>=0.7.0
+Requires-Dist: einops>=0.8.1
+Requires-Dist: einx>=0.3.0
+Requires-Dist: equinox>=0.12.2
+Requires-Dist: grain>=0.2.11
+Requires-Dist: jax>=0.6.2
+Requires-Dist: jaxtyping>=0.3.2
+Requires-Dist: matplotlib>=3.10.3
+Requires-Dist: ml-collections>=1.1.0
+Requires-Dist: numpy>=2.2.6
+Requires-Dist: optax>=0.2.5
+Requires-Dist: pillow>=11.3.0
+Requires-Dist: tqdm>=4.67.1
+Dynamic: license-file
