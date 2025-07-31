@@ -2,6 +2,13 @@
 
 Cutting-edge and feature-rich implementation of Rectified Flows from [Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flows](https://arxiv.org/abs/2209.03003) in `jax` and `equinox`.
 
+
+<p align="center">
+  <picture>
+    <img src="assets/rectified_flow_animation.gif" alt="Your image description">
+  </picture>
+</p>
+
 #### Features
 - Deterministic and stochastic sampling of the associated ODE and SDE respectively,
 - Mixed precision optimisation,
